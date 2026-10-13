@@ -10,17 +10,17 @@
   ```
 
 - 実行中はボタンが無効化され、進捗インジケーターと標準出力/標準エラーのログが表示されます。各プロジェクトは独立してステータス・ログを持つので、同時に動かしても混ざりません。
-- 「プロジェクトを追加」から、名前・リポジトリのパス・`git pull` 後に実行するコマンドを入力して新しいプロジェクトを登録できます。登録内容は `UserDefaults` に保存され、次回起動時にも残ります。
+- リポジトリのパス・`git pull` 後に実行するコマンドは各プロジェクトの行から編集でき、変更内容は `UserDefaults` に保存されて次回起動時にも残ります。
 - 独立したウィンドウでも同じ画面を開けます(ポップオーバー内の「ウィンドウで開く」ボタン)。
 
-## 最初から登録されているプロジェクト
+## 対応プロジェクト
 
 | プロジェクト | デフォルトのパス | post-pull コマンド |
 | --- | --- | --- |
 | [Karukan](https://github.com/togatoga/karukan) | `~/karukan` | `cd karukan-im/macos && make install && (killall KarukanIME 2>/dev/null \|\| true)` |
 | [Meltype](https://github.com/yksr-melt/Meltype) | `~/Meltype` | `bash mac/update.sh` |
 
-パスは環境に合わせてアプリ内で変更してください。他の IME のプロジェクトも「プロジェクトを追加」から同じように登録できます。
+パスは環境に合わせてアプリ内で変更してください。新しい IME に対応させたい場合は `IMEUpdaterApp.swift` の `AppViewModel.defaultProjects` に追記してビルドし直してください(アプリ内から動的に追加する UI はあえて持たせていません)。
 
 ## インストール方法
 

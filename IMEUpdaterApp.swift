@@ -192,10 +192,6 @@ final class AppViewModel: ObservableObject {
         return runner
     }
 
-    func addProject(name: String, repoPath: String, postPullCommand: String) {
-        projects.append(UpdateProject(name: name, repoPath: repoPath, postPullCommand: postPullCommand))
-    }
-
     func removeProject(_ project: UpdateProject) {
         projects.removeAll { $0.id == project.id }
         runners.removeValue(forKey: project.id)
@@ -212,7 +208,6 @@ final class AppViewModel: ObservableObject {
 struct RootView: View {
     @ObservedObject var appViewModel: AppViewModel
     @Environment(\.openWindow) private var openWindow
-    @State private var showingAddSheet = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -239,13 +234,6 @@ struct RootView: View {
             }
             .frame(maxHeight: 420)
 
-            Button {
-                showingAddSheet = true
-            } label: {
-                Label("プロジェクトを追加", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
-            }
-
             Divider()
 
             Button("終了") {
@@ -255,11 +243,6 @@ struct RootView: View {
         }
         .padding()
         .frame(width: 380)
-        .sheet(isPresented: $showingAddSheet) {
-            AddProjectSheet { name, path, command in
-                appViewModel.addProject(name: name, repoPath: path, postPullCommand: command)
-            }
-        }
     }
 }
 
@@ -343,49 +326,3 @@ struct ProjectRow: View {
     }
 }
 
-struct AddProjectSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var repoPath = ""
-    @State private var postPullCommand = ""
-
-    var onAdd: (String, String, String) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("プロジェクトを追加")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("名前").font(.caption).foregroundColor(.secondary)
-                TextField("例: MyIME", text: $name)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("リポジトリのパス").font(.caption).foregroundColor(.secondary)
-                TextField("例: ~/myime", text: $repoPath)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("git pull 後に実行するコマンド").font(.caption).foregroundColor(.secondary)
-                TextField("例: make install", text: $postPullCommand)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            HStack {
-                Spacer()
-                Button("キャンセル") { dismiss() }
-                Button("追加") {
-                    onAdd(name, repoPath, postPullCommand)
-                    dismiss()
-                }
-                .disabled(name.isEmpty || repoPath.isEmpty)
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding()
-        .frame(width: 360)
-    }
-}
