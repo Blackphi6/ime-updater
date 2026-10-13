@@ -1,9 +1,9 @@
 import AppKit
 
 // 1024x1024 のマスターアイコンを生成する。
-// 背景: 青紫グラデーションの角丸四角、中央に「あ」の文字(白)、
+// 背景: 青紫グラデーションの角丸四角、中央にキーボード(白)、
 // 右下に更新矢印の丸いバッジ。
-// Usage: swift make_ime_icon.swift <output> [badge:0|1]
+// Usage: swift make_keyboard_icon.swift <output> [badge:0|1]
 
 let args = CommandLine.arguments
 let outputPath = args.count > 1 ? args[1] : "icon_master.png"
@@ -22,26 +22,29 @@ let gradient = NSGradient(colors: [
 ])
 gradient?.draw(in: bgPath, angle: -90)
 
-let glyph = "あ"
-let fontSize = size * 0.64
-let font = NSFont.boldSystemFont(ofSize: fontSize)
-let paragraph = NSMutableParagraphStyle()
-paragraph.alignment = .center
-let attributed = NSAttributedString(string: glyph, attributes: [
-    .font: font,
-    .foregroundColor: NSColor.white,
-    .paragraphStyle: paragraph,
-])
-let glyphSize = attributed.size()
-let glyphOrigin = NSPoint(
-    x: (size - glyphSize.width) / 2,
-    y: (size - glyphSize.height) / 2 - size * 0.03
-)
-attributed.draw(at: glyphOrigin)
+let config = NSImage.SymbolConfiguration(pointSize: size * 0.5, weight: .bold)
+if let symbol = NSImage(systemSymbolName: "keyboard.fill", accessibilityDescription: nil)?
+    .withSymbolConfiguration(config) {
+    let symbolSize = symbol.size
+    let symbolRect = NSRect(
+        x: (size - symbolSize.width) / 2,
+        y: (size - symbolSize.height) / 2,
+        width: symbolSize.width,
+        height: symbolSize.height
+    )
+    if let cgImage = symbol.cgImage(forProposedRect: nil, context: nil, hints: nil),
+       let context = NSGraphicsContext.current?.cgContext {
+        context.saveGState()
+        context.clip(to: symbolRect, mask: cgImage)
+        NSColor.white.setFill()
+        symbolRect.fill()
+        context.restoreGState()
+    }
+}
 
 if withBadge {
-    let badgeDiameter = size * 0.36
-    let badgeMargin = size * 0.04
+    let badgeDiameter = size * 0.38
+    let badgeMargin = size * 0.03
     let badgeRect = NSRect(
         x: size - badgeDiameter - badgeMargin,
         y: badgeMargin,

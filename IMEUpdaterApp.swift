@@ -39,7 +39,7 @@ struct MenuBarIcon: View {
                 .renderingMode(.original)
                 .frame(width: 18, height: 18)
         } else {
-            Image(systemName: "textformat")
+            Image(systemName: "keyboard.fill")
         }
     }
 }
