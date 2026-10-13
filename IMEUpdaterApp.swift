@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 @main
-struct RepoUpdaterApp: App {
+struct IMEUpdaterApp: App {
     @StateObject private var appViewModel = AppViewModel()
 
     var body: some Scene {
@@ -13,7 +13,7 @@ struct RepoUpdaterApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Repo Updater", id: "main") {
+        Window("IME Updater", id: "main") {
             RootView(appViewModel: appViewModel)
         }
         .windowResizability(.contentSize)
@@ -39,7 +39,7 @@ struct MenuBarIcon: View {
                 .renderingMode(.original)
                 .frame(width: 18, height: 18)
         } else {
-            Image(systemName: "square.stack.3d.up.fill")
+            Image(systemName: "textformat")
         }
     }
 }
@@ -217,7 +217,7 @@ struct RootView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Repo Updater")
+                Text("IME Updater")
                     .font(.headline)
                 Spacer()
                 Button("ウィンドウで開く") {
