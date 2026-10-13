@@ -1,9 +1,14 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
 @main
 struct IMEUpdaterApp: App {
     @StateObject private var appViewModel = AppViewModel()
+
+    init() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -66,7 +71,7 @@ struct UpdateProject: Identifiable, Codable, Equatable {
     var iconFileName: String?
 }
 
-enum UpdateStatus: Equatable {
+enum UpdateStatus: String, Equatable {
     case idle, running, success, error
 
     var label: String {
@@ -94,7 +99,24 @@ enum UpdateStatus: Equatable {
 final class ProjectRunner: ObservableObject {
     @Published var status: UpdateStatus = .idle
     @Published var log: String = ""
+    // 直近の実行結果。再起動しても「前回アップデートできたか」が分かるよう永続化する。
+    @Published var lastResult: UpdateStatus?
+    @Published var lastUpdatedAt: Date?
     private var runningProcess: Process?
+
+    private let projectID: UUID
+    private let projectName: String
+    private static func lastResultKey(_ id: UUID) -> String { "lastResult-\(id.uuidString)" }
+    private static func lastUpdatedAtKey(_ id: UUID) -> String { "lastUpdatedAt-\(id.uuidString)" }
+
+    init(projectID: UUID, projectName: String) {
+        self.projectID = projectID
+        self.projectName = projectName
+        if let raw = UserDefaults.standard.string(forKey: Self.lastResultKey(projectID)) {
+            lastResult = UpdateStatus(rawValue: raw)
+        }
+        lastUpdatedAt = UserDefaults.standard.object(forKey: Self.lastUpdatedAtKey(projectID)) as? Date
+    }
 
     // ログインシェル (-l) で起動し、.zprofile 等で設定された PATH
     // (Homebrew, dotnet 等) を確実に読み込む。環境依存の "command not found" を防ぐため。
@@ -129,8 +151,12 @@ final class ProjectRunner: ObservableObject {
             stdoutPipe.fileHandleForReading.readabilityHandler = nil
             stderrPipe.fileHandleForReading.readabilityHandler = nil
             Task { @MainActor in
-                self?.status = finished.terminationStatus == 0 ? .success : .error
-                self?.runningProcess = nil
+                guard let self else { return }
+                let result: UpdateStatus = finished.terminationStatus == 0 ? .success : .error
+                self.status = result
+                self.runningProcess = nil
+                self.recordResult(result)
+                self.notifyCompletion(result: result)
             }
         }
 
@@ -140,12 +166,33 @@ final class ProjectRunner: ObservableObject {
         } catch {
             log += "起動に失敗しました: \(error.localizedDescription)\n"
             status = .error
+            recordResult(.error)
+            notifyCompletion(result: .error)
         }
     }
 
     private func forwardOutput(_ data: Data) {
         guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
         log += text
+    }
+
+    private func recordResult(_ result: UpdateStatus) {
+        let now = Date()
+        lastResult = result
+        lastUpdatedAt = now
+        UserDefaults.standard.set(result.rawValue, forKey: Self.lastResultKey(projectID))
+        UserDefaults.standard.set(now, forKey: Self.lastUpdatedAtKey(projectID))
+    }
+
+    private func notifyCompletion(result: UpdateStatus) {
+        let content = UNMutableNotificationContent()
+        content.title = projectName
+        content.body = result == .success ? "アップデートが完了しました" : "アップデートに失敗しました"
+        if result == .error {
+            content.sound = .default
+        }
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
 }
 
@@ -187,7 +234,7 @@ final class AppViewModel: ObservableObject {
 
     func runner(for project: UpdateProject) -> ProjectRunner {
         if let existing = runners[project.id] { return existing }
-        let runner = ProjectRunner()
+        let runner = ProjectRunner(projectID: project.id, projectName: project.name)
         runners[project.id] = runner
         return runner
     }
@@ -304,8 +351,16 @@ struct ProjectRow: View {
                     Image(systemName: "shippingbox")
                         .frame(width: 22, height: 22)
                 }
-                Text(project.name)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(project.name)
+                    if let lastUpdatedAt = runner.lastUpdatedAt {
+                        Text(Self.relativeFormatter.localizedString(for: lastUpdatedAt, relativeTo: Date()))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 Spacer()
+                resultBadge
                 Text(runner.status.label)
                     .font(.caption)
                     .foregroundColor(runner.status.color)
@@ -324,5 +379,23 @@ struct ProjectRow: View {
             }
         }
     }
+
+    // 「待機中」でも前回アップデートできたかが一目で分かるよう、
+    // 直近の実行結果(成功/失敗)を小さいバッジで常に出す。
+    @ViewBuilder
+    private var resultBadge: some View {
+        if runner.status != .running, let lastResult = runner.lastResult {
+            Image(systemName: lastResult == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundColor(lastResult == .success ? .green : .red)
+                .font(.caption)
+        }
+    }
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.unitsStyle = .short
+        return formatter
+    }()
 }
 
