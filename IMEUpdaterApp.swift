@@ -263,6 +263,9 @@ struct RootView: View {
                     .font(.headline)
                 Spacer()
                 Button("ウィンドウで開く") {
+                    // LSUIElement アプリは openWindow だけだとアプリがアクティブ化されず、
+                    // ウィンドウが他のウィンドウの裏に隠れて「何も起きない」ように見える。
+                    NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "main")
                 }
                 .font(.caption)
