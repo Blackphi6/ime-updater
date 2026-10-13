@@ -30,12 +30,12 @@
 
 ```sh
 git clone <このリポジトリ>
-cd karukan-updater
-xcrun swiftc -parse-as-library -O -o IMEUpdater IMEUpdaterApp.swift
+cd ime-updater
+xcrun swiftc -parse-as-library -O -o "IME Updater" IMEUpdaterApp.swift
 
-APP=/Applications/IMEUpdater.app
+APP="/Applications/IME Updater.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp IMEUpdater "$APP/Contents/MacOS/"
+cp "IME Updater" "$APP/Contents/MacOS/"
 cp Resources/*.icns Resources/*.png "$APP/Contents/Resources/"
 cp Info.plist "$APP/Contents/"
 codesign --force --sign - "$APP"
