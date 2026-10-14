@@ -137,8 +137,15 @@ final class ProjectRunner: ObservableObject {
         log = ""
         startProgressTracking()
 
-        let escapedPath = repoPath.replacingOccurrences(of: "'", with: "'\\''")
-        let script = "cd '\(escapedPath)' && git pull && \(postPullCommand)"
+        // azooKey のように brew だけでアップデートが完結するプロジェクトは
+        // リポジトリを持たないので、パスが空なら cd && git pull を省略する。
+        let script: String
+        if repoPath.isEmpty {
+            script = postPullCommand
+        } else {
+            let escapedPath = repoPath.replacingOccurrences(of: "'", with: "'\\''")
+            script = "cd '\(escapedPath)' && git pull && \(postPullCommand)"
+        }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -301,6 +308,14 @@ final class AppViewModel: ObservableObject {
             repoPath: ("~/Meltype" as NSString).expandingTildeInPath,
             postPullCommand: "bash mac/update.sh",
             iconFileName: "MeltypeIcon"
+        ),
+        // azooKey は Homebrew Cask で配布されているため、リポジトリの
+        // クローンではなく brew コマンドだけでアップデートが完結する。
+        UpdateProject(
+            name: "azooKey",
+            repoPath: "",
+            postPullCommand: "brew update && brew upgrade --cask azookey",
+            iconFileName: "AzooKeyIcon"
         ),
     ]
 
@@ -538,20 +553,20 @@ struct ProjectRow: View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 6) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("リポジトリのパス")
+                    Text("リポジトリのパス(空なら git pull をスキップ)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    TextField("例: ~/karukan", text: $project.repoPath)
+                    TextField("例: ~/karukan(brew 等パス不要なら空のまま)", text: $project.repoPath)
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
                         .disabled(runner.status == .running)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("git pull 後に実行するコマンド")
+                    Text("実行するコマンド")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    TextField("例: make install", text: $project.postPullCommand)
+                    TextField("例: make install / brew upgrade --cask ...", text: $project.postPullCommand)
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
                         .disabled(runner.status == .running)

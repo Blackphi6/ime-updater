@@ -21,12 +21,13 @@
 
 ## 対応プロジェクト
 
-| プロジェクト | デフォルトのパス | post-pull コマンド |
+| プロジェクト | デフォルトのパス | 実行するコマンド |
 | --- | --- | --- |
 | [Karukan](https://github.com/togatoga/karukan) | `~/karukan` | `cd karukan-im/macos && make install && (killall KarukanIME 2>/dev/null \|\| true)` |
 | [Meltype](https://github.com/yksr-melt/Meltype) | `~/Meltype` | `bash mac/update.sh` |
+| [azooKey](https://github.com/azooKey/azooKey-Desktop) | (なし) | `brew update && brew upgrade --cask azookey` |
 
-パスは環境に合わせてアプリ内で変更してください。新しい IME に対応させたい場合は `IMEUpdaterApp.swift` の `AppViewModel.defaultProjects` に追記してビルドし直してください(アプリ内から動的に追加する UI はあえて持たせていません)。
+パスは環境に合わせてアプリ内で変更してください。azooKey のように Homebrew Cask だけでアップデートが完結するプロジェクトは、パスを空のままにしておけば `cd` と `git pull` をスキップしてコマンドだけ実行します。新しい IME に対応させたい場合は `IMEUpdaterApp.swift` の `AppViewModel.defaultProjects` に追記してビルドし直してください(アプリ内から動的に追加する UI はあえて持たせていません)。
 
 ## インストール方法
 
@@ -78,3 +79,4 @@ open "$APP"
 - `Resources/MenuBarIcon.png`: 背景なしのキーボードのシルエットのみ(`make_menubar_symbol.swift` 参照)。
 - `Resources/KarukanIcon.png`: [Karukan 公式リポジトリ](https://github.com/togatoga/karukan) の `icon.png` を元に生成。
 - `Resources/MeltypeIcon.png`: [Meltype 公式リポジトリ](https://github.com/yksr-melt/Meltype) の公式ロゴ内の雪の結晶モチーフを切り出して生成。
+- `Resources/AzooKeyIcon.png`: [azooKey-Desktop 公式リポジトリ](https://github.com/azooKey/azooKey-Desktop) のアプリアイコンをそのまま使用。
