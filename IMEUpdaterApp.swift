@@ -102,12 +102,20 @@ final class ProjectRunner: ObservableObject {
     // 直近の実行結果。再起動しても「前回アップデートできたか」が分かるよう永続化する。
     @Published var lastResult: UpdateStatus?
     @Published var lastUpdatedAt: Date?
+    // 実行中の進捗(0.0〜1.0)と推定残り時間。前回の所要時間が分かっているときだけ出す
+    // (正確な進捗を報告してくれるコマンドではないので、あくまで前回実績ベースの目安)。
+    @Published var progress: Double?
+    @Published var estimatedRemaining: TimeInterval?
     private var runningProcess: Process?
+    private var progressTimer: Timer?
+    private var runStartedAt: Date?
+    private var lastDuration: TimeInterval?
 
     private let projectID: UUID
     private let projectName: String
     private static func lastResultKey(_ id: UUID) -> String { "lastResult-\(id.uuidString)" }
     private static func lastUpdatedAtKey(_ id: UUID) -> String { "lastUpdatedAt-\(id.uuidString)" }
+    private static func lastDurationKey(_ id: UUID) -> String { "lastDuration-\(id.uuidString)" }
 
     init(projectID: UUID, projectName: String) {
         self.projectID = projectID
@@ -116,6 +124,8 @@ final class ProjectRunner: ObservableObject {
             lastResult = UpdateStatus(rawValue: raw)
         }
         lastUpdatedAt = UserDefaults.standard.object(forKey: Self.lastUpdatedAtKey(projectID)) as? Date
+        let storedDuration = UserDefaults.standard.double(forKey: Self.lastDurationKey(projectID))
+        lastDuration = storedDuration > 0 ? storedDuration : nil
     }
 
     // ログインシェル (-l) で起動し、.zprofile 等で設定された PATH
@@ -125,6 +135,7 @@ final class ProjectRunner: ObservableObject {
         guard status != .running else { return }
         status = .running
         log = ""
+        startProgressTracking()
 
         let escapedPath = repoPath.replacingOccurrences(of: "'", with: "'\\''")
         let script = "cd '\(escapedPath)' && git pull && \(postPullCommand)"
@@ -155,6 +166,7 @@ final class ProjectRunner: ObservableObject {
                 let result: UpdateStatus = finished.terminationStatus == 0 ? .success : .error
                 self.status = result
                 self.runningProcess = nil
+                self.stopProgressTracking(success: result == .success)
                 self.recordResult(result)
                 self.notifyCompletion(result: result)
             }
@@ -166,9 +178,47 @@ final class ProjectRunner: ObservableObject {
         } catch {
             log += "起動に失敗しました: \(error.localizedDescription)\n"
             status = .error
+            stopProgressTracking(success: false)
             recordResult(.error)
             notifyCompletion(result: .error)
         }
+    }
+
+    // 正確な進捗を報告してくれるコマンドではないので、前回の所要時間を基準に
+    // 「経過時間 / 前回の所要時間」で進捗を推定する。前回実績がなければ何も出さない
+    // (ProjectRow 側は進捗が nil ならただのスピナーを出す)。
+    private func startProgressTracking() {
+        runStartedAt = Date()
+        progress = nil
+        estimatedRemaining = nil
+        guard let lastDuration, lastDuration > 0 else { return }
+
+        progressTimer?.invalidate()
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.updateProgress(lastDuration: lastDuration) }
+        }
+    }
+
+    private func updateProgress(lastDuration: TimeInterval) {
+        guard let runStartedAt else { return }
+        let elapsed = Date().timeIntervalSince(runStartedAt)
+        // 前回より時間がかかっても 99% で止めておき、終わっていないのに 100% と
+        // 表示してしまわないようにする。
+        progress = min(elapsed / lastDuration, 0.99)
+        estimatedRemaining = max(lastDuration - elapsed, 0)
+    }
+
+    private func stopProgressTracking(success: Bool) {
+        progressTimer?.invalidate()
+        progressTimer = nil
+        progress = nil
+        estimatedRemaining = nil
+        if success, let runStartedAt {
+            let duration = Date().timeIntervalSince(runStartedAt)
+            lastDuration = duration
+            UserDefaults.standard.set(duration, forKey: Self.lastDurationKey(projectID))
+        }
+        self.runStartedAt = nil
     }
 
     private func forwardOutput(_ data: Data) {
@@ -344,43 +394,79 @@ struct ProjectRow: View {
             }
             .padding(.top, 6)
         } label: {
-            HStack(spacing: 8) {
-                if let icon = projectIcon(named: project.iconFileName) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .renderingMode(.original)
-                        .frame(width: 22, height: 22)
-                } else {
-                    Image(systemName: "shippingbox")
-                        .frame(width: 22, height: 22)
-                }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(project.name)
-                    if let lastUpdatedAt = runner.lastUpdatedAt {
-                        Text(Self.relativeTimeString(lastUpdatedAt))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                Spacer()
-                resultBadge
-                Text(runner.status.label)
-                    .font(.caption)
-                    .foregroundColor(runner.status.color)
-                Button {
-                    runner.run(repoPath: project.repoPath, postPullCommand: project.postPullCommand)
-                } label: {
-                    if runner.status == .running {
-                        ProgressView()
-                            .controlSize(.small)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    if let icon = projectIcon(named: project.iconFileName) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .renderingMode(.original)
+                            .frame(width: 22, height: 22)
                     } else {
-                        Image(systemName: "arrow.clockwise")
+                        Image(systemName: "shippingbox")
+                            .frame(width: 22, height: 22)
                     }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(project.name)
+                        if let lastUpdatedAt = runner.lastUpdatedAt {
+                            Text(Self.relativeTimeString(lastUpdatedAt))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    Spacer()
+                    resultBadge
+                    Text(runner.status.label)
+                        .font(.caption)
+                        .foregroundColor(runner.status.color)
+                    Button {
+                        runner.run(repoPath: project.repoPath, postPullCommand: project.postPullCommand)
+                    } label: {
+                        if runner.status == .running {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(runner.status == .running)
                 }
-                .buttonStyle(.borderless)
-                .disabled(runner.status == .running)
+
+                if runner.status == .running {
+                    progressArea
+                }
             }
         }
+    }
+
+    // 実行中だけ出す進捗表示。前回の所要時間が分かっていればプログレスバーと
+    // 「残り約◯分◯秒」を、分かっていなければ(初回実行など)計測中である旨だけ出す。
+    @ViewBuilder
+    private var progressArea: some View {
+        if let progress = runner.progress {
+            VStack(alignment: .leading, spacing: 2) {
+                ProgressView(value: progress)
+                if let remaining = runner.estimatedRemaining {
+                    Text("残り約 \(Self.durationString(remaining))")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        } else {
+            Text("初回実行のため所要時間を計測中…")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private static func durationString(_ interval: TimeInterval) -> String {
+        let totalSeconds = max(Int(interval.rounded()), 0)
+        if totalSeconds < 60 {
+            return "\(totalSeconds)秒"
+        }
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return seconds == 0 ? "\(minutes)分" : "\(minutes)分\(seconds)秒"
     }
 
     // 「待機中」でも前回アップデートできたかが一目で分かるよう、
