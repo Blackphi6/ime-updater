@@ -357,7 +357,7 @@ struct ProjectRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(project.name)
                     if let lastUpdatedAt = runner.lastUpdatedAt {
-                        Text(Self.relativeFormatter.localizedString(for: lastUpdatedAt, relativeTo: Date()))
+                        Text(Self.relativeTimeString(lastUpdatedAt))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -400,5 +400,15 @@ struct ProjectRow: View {
         formatter.unitsStyle = .short
         return formatter
     }()
+
+    // 更新直後は Date() の取得タイミングの誤差で「0秒後」のような
+    // 未来形になってしまうことがあるため、ごく短い時間差は特別扱いする。
+    private static func relativeTimeString(_ date: Date) -> String {
+        let interval = Date().timeIntervalSince(date)
+        if interval < 2 {
+            return "たった今"
+        }
+        return relativeFormatter.localizedString(for: date, relativeTo: Date())
+    }
 }
 
