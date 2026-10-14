@@ -246,16 +246,48 @@ final class ProjectRunner: ObservableObject {
     }
 }
 
-// MARK: - 全体の管理(プロジェクト一覧の永続化)
+// 「自動で裏で更新する」頻度。日数そのものを値に持たせておくと計算が楽。
+enum AutoUpdateInterval: Int, CaseIterable, Identifiable, Codable {
+    case daily = 1
+    case weekly = 7
+
+    var id: Int { rawValue }
+
+    var label: String {
+        switch self {
+        case .daily: "毎日"
+        case .weekly: "毎週"
+        }
+    }
+
+    var seconds: TimeInterval { TimeInterval(rawValue) * 86400 }
+}
+
+// MARK: - 全体の管理(プロジェクト一覧の永続化・自動更新)
 
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published var projects: [UpdateProject] {
         didSet { save() }
     }
+    // バックグラウンドでの定期更新。有効にすると、アプリが起動している間
+    // interval の間隔ですべてのプロジェクトを自動更新する。
+    @Published var autoUpdateEnabled: Bool {
+        didSet { UserDefaults.standard.set(autoUpdateEnabled, forKey: Self.autoUpdateEnabledKey) }
+    }
+    @Published var autoUpdateInterval: AutoUpdateInterval {
+        didSet { UserDefaults.standard.set(autoUpdateInterval.rawValue, forKey: Self.autoUpdateIntervalKey) }
+    }
     private var runners: [UUID: ProjectRunner] = [:]
+    private var autoUpdateTimer: Timer?
 
     private static let storageKey = "projects"
+    private static let autoUpdateEnabledKey = "autoUpdateEnabled"
+    private static let autoUpdateIntervalKey = "autoUpdateInterval"
+    private static let lastAutoUpdateAtKey = "lastAutoUpdateAt"
+    // バックグラウンド更新が実際に必要かをこの間隔でチェックする。
+    // Mac がスリープしていた間は Timer が進まないので、起動のたびにも別途チェックする。
+    private static let checkInterval: TimeInterval = 3600
 
     static let defaultProjects: [UpdateProject] = [
         UpdateProject(
@@ -280,6 +312,20 @@ final class AppViewModel: ObservableObject {
         } else {
             projects = Self.defaultProjects
         }
+
+        if UserDefaults.standard.object(forKey: Self.autoUpdateEnabledKey) != nil {
+            autoUpdateEnabled = UserDefaults.standard.bool(forKey: Self.autoUpdateEnabledKey)
+        } else {
+            autoUpdateEnabled = true // 手間なく最新を保てるのが目的なので、デフォルトは有効。
+        }
+        let storedInterval = UserDefaults.standard.integer(forKey: Self.autoUpdateIntervalKey)
+        autoUpdateInterval = AutoUpdateInterval(rawValue: storedInterval) ?? .daily
+
+        // アプリを開いた瞬間に、まず全プロジェクトを一斉更新する。
+        // これ自体がバックグラウンド更新を兼ねるので、基準時刻も更新しておく。
+        runAll()
+        UserDefaults.standard.set(Date(), forKey: Self.lastAutoUpdateAtKey)
+        startAutoUpdateTimer()
     }
 
     func runner(for project: UpdateProject) -> ProjectRunner {
@@ -292,6 +338,29 @@ final class AppViewModel: ObservableObject {
     func removeProject(_ project: UpdateProject) {
         projects.removeAll { $0.id == project.id }
         runners.removeValue(forKey: project.id)
+    }
+
+    // すべてのプロジェクトを並行して更新する(各 ProjectRunner が独立した
+    // プロセスを持つので、順番に待たず同時に走らせられる)。
+    func runAll() {
+        for project in projects {
+            runner(for: project).run(repoPath: project.repoPath, postPullCommand: project.postPullCommand)
+        }
+    }
+
+    private func startAutoUpdateTimer() {
+        autoUpdateTimer?.invalidate()
+        autoUpdateTimer = Timer.scheduledTimer(withTimeInterval: Self.checkInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkAutoUpdate() }
+        }
+    }
+
+    private func checkAutoUpdate() {
+        guard autoUpdateEnabled else { return }
+        let lastAutoUpdate = UserDefaults.standard.object(forKey: Self.lastAutoUpdateAtKey) as? Date ?? .distantPast
+        guard Date().timeIntervalSince(lastAutoUpdate) >= autoUpdateInterval.seconds else { return }
+        UserDefaults.standard.set(Date(), forKey: Self.lastAutoUpdateAtKey)
+        runAll()
     }
 
     private func save() {
@@ -332,6 +401,10 @@ struct MenuBarContentView: View {
 
             Divider()
 
+            AutoUpdateSettingsView(appViewModel: appViewModel)
+
+            Divider()
+
             QuitButton()
                 .padding(10)
         }
@@ -351,10 +424,42 @@ struct WindowContentView: View {
 
             Divider()
 
+            AutoUpdateSettingsView(appViewModel: appViewModel)
+
+            Divider()
+
             QuitButton()
                 .padding(10)
         }
         .frame(minWidth: 420, idealWidth: 420, maxWidth: 420, minHeight: 120)
+    }
+}
+
+// 「アプリを開いた瞬間の一斉更新」に加えて、裏で定期的に更新したい人向けの設定。
+struct AutoUpdateSettingsView: View {
+    @ObservedObject var appViewModel: AppViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: $appViewModel.autoUpdateEnabled) {
+                Text("バックグラウンドで自動更新")
+                    .font(.caption)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            if appViewModel.autoUpdateEnabled {
+                Picker("頻度", selection: $appViewModel.autoUpdateInterval) {
+                    ForEach(AutoUpdateInterval.allCases) { interval in
+                        Text(interval.label).tag(interval)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 }
 
