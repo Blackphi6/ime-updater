@@ -382,6 +382,7 @@ struct MenuBarContentView: View {
                 Text("IME Updater")
                     .font(.headline)
                 Spacer()
+                UpdateAllButton(appViewModel: appViewModel)
                 Button {
                     // LSUIElement アプリは openWindow だけだとアプリがアクティブ化されず、
                     // ウィンドウが他のウィンドウの裏に隠れて「何も起きない」ように見える。
@@ -419,8 +420,14 @@ struct WindowContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                UpdateAllButton(appViewModel: appViewModel)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+
             ProjectListView(appViewModel: appViewModel)
-                .padding(.top, 10)
 
             Divider()
 
@@ -460,6 +467,24 @@ struct AutoUpdateSettingsView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+    }
+}
+
+// 待機中・エラーのプロジェクトをまとめて更新する。実行中のものは
+// ProjectRunner.run() 側のガードでスキップされるだけなので、
+// 一部が実行中でも気にせず押せる(無効化しない)。
+struct UpdateAllButton: View {
+    @ObservedObject var appViewModel: AppViewModel
+
+    var body: some View {
+        Button {
+            appViewModel.runAll()
+        } label: {
+            Label("すべて更新", systemImage: "arrow.triangle.2.circlepath")
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+        .help("登録中のプロジェクトをまとめて更新します")
     }
 }
 
