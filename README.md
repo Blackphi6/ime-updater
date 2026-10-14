@@ -65,6 +65,8 @@ open "$APP"
 - メニューバーの `NSStatusItem` は `NSImage` の `size` プロパティを基準に描画するため、SwiftUI の `.frame()` だけでは縮小できません。`MenuBarIcon` では `NSImage.size` 自体を `18x18` に設定しています。
 - メニューバーアイコンは背景なしのキーボードのシルエットのみにしています。背景の角丸四角を付けたまま 18px に縮小すると背景の存在感が勝って形が潰れるためです(アプリアイコン側は 1024px から表示されるので背景・バッジ付きのままで問題ありません)。当初は「あ」の文字を使っていましたが、実際の入力ソース切り替えアイコン(「あ」「A」)と見分けがつかず誤解を招くため、キーボードのモチーフに変更しました。
 - Karukan の post-pull コマンドで `make install` の後にもう一度 `killall KarukanIME` を呼んでいるのは、`make install` が内部で既に同じ kill を実行しているためです。2 回目の kill は対象プロセスなしで失敗しうるので、`(killall KarukanIME 2>/dev/null || true)` として失敗を握りつぶしています。
+- ポップオーバー(`MenuBarContentView`)とウィンドウ(`WindowContentView`)は見た目のコンテナを分けています。プロジェクト一覧(`ProjectListView`)は共有していますが、「ウィンドウで開く」ボタンはポップオーバー側にしか出しません(ウィンドウの中に「ウィンドウで開く」ボタンがあっても意味がないため)。
+- `Window` シーンは `.windowResizability(.contentSize)` にしているため、常にコンテンツの実サイズにウィンドウが追従します(`.contentMinSize` だと `idealWidth`/`maxWidth` の指定が尊重されず、ウィンドウが想定外に大きく開くことがありました)。`ProjectListView` の `ScrollView` には `.fixedSize(horizontal: false, vertical: true)` を付けて、プロジェクト数が少ないときに余分な空白ができないようにしています。
 
 ## アイコンについて
 

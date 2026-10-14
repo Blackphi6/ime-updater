@@ -12,14 +12,14 @@ struct IMEUpdaterApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            RootView(appViewModel: appViewModel)
+            MenuBarContentView(appViewModel: appViewModel)
         } label: {
             MenuBarIcon()
         }
         .menuBarExtraStyle(.window)
 
         Window("IME Updater", id: "main") {
-            RootView(appViewModel: appViewModel)
+            WindowContentView(appViewModel: appViewModel)
         }
         .windowResizability(.contentSize)
     }
@@ -302,47 +302,98 @@ final class AppViewModel: ObservableObject {
 
 // MARK: - UI
 
-struct RootView: View {
+// メニューバーのポップオーバー。コンパクトに収め、ウィンドウを呼び出す導線だけ持つ。
+struct MenuBarContentView: View {
     @ObservedObject var appViewModel: AppViewModel
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(spacing: 0) {
             HStack {
                 Text("IME Updater")
                     .font(.headline)
                 Spacer()
-                Button("ウィンドウで開く") {
+                Button {
                     // LSUIElement アプリは openWindow だけだとアプリがアクティブ化されず、
                     // ウィンドウが他のウィンドウの裏に隠れて「何も起きない」ように見える。
                     NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "main")
+                } label: {
+                    Image(systemName: "macwindow")
                 }
-                .font(.caption)
+                .buttonStyle(.plain)
+                .help("ウィンドウで開く")
             }
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
 
-            ScrollView {
-                VStack(spacing: 8) {
-                    ForEach($appViewModel.projects) { $project in
-                        ProjectRow(
-                            project: $project,
-                            runner: appViewModel.runner(for: project),
-                            onDelete: { appViewModel.removeProject(project) }
-                        )
-                    }
-                }
-            }
-            .frame(maxHeight: 420)
+            ProjectListView(appViewModel: appViewModel)
 
             Divider()
 
-            Button("終了") {
-                NSApplication.shared.terminate(nil)
-            }
-            .frame(maxWidth: .infinity)
+            QuitButton()
+                .padding(10)
         }
-        .padding()
-        .frame(width: 380)
+        .frame(width: 340)
+    }
+}
+
+// 独立ウィンドウ。タイトルバーに既にアプリ名が出るので、本文に見出しは置かない。
+// 「ウィンドウで開く」のような導線は(自分自身がウィンドウなので)不要。
+struct WindowContentView: View {
+    @ObservedObject var appViewModel: AppViewModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ProjectListView(appViewModel: appViewModel)
+                .padding(.top, 10)
+
+            Divider()
+
+            QuitButton()
+                .padding(10)
+        }
+        .frame(minWidth: 420, idealWidth: 420, maxWidth: 420, minHeight: 120)
+    }
+}
+
+struct QuitButton: View {
+    var body: some View {
+        Button("終了") {
+            NSApplication.shared.terminate(nil)
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.secondary)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// プロジェクト一覧。ポップオーバー/ウィンドウ両方で共有する。
+// 件数が少ないときは余白なく自然な高さに収まり、多いときだけスクロールする。
+struct ProjectListView: View {
+    @ObservedObject var appViewModel: AppViewModel
+
+    private static let rowHeight: CGFloat = 50
+    private static let maxVisibleRows: CGFloat = 6
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(Array($appViewModel.projects.enumerated()), id: \.element.id) { index, $project in
+                    if index > 0 {
+                        Divider().padding(.leading, 46)
+                    }
+                    ProjectRow(
+                        project: $project,
+                        runner: appViewModel.runner(for: project),
+                        onDelete: { appViewModel.removeProject(project) }
+                    )
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxHeight: min(CGFloat(appViewModel.projects.count), Self.maxVisibleRows) * Self.rowHeight + 24)
     }
 }
 
@@ -393,6 +444,7 @@ struct ProjectRow: View {
                 }
             }
             .padding(.top, 6)
+            .padding(.bottom, 10)
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
@@ -437,6 +489,8 @@ struct ProjectRow: View {
                 }
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 
     // 実行中だけ出す進捗表示。前回の所要時間が分かっていればプログレスバーと
