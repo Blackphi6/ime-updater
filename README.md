@@ -13,6 +13,7 @@
   ```
 
 - 実行中はボタンが無効化され、進捗インジケーターと標準出力/標準エラーのログが表示されます。各プロジェクトは独立してステータス・ログを持つので、同時に動かしても混ざりません。
+- 複数プロジェクトを完全に同時実行すると、入力ソース登録などが稀に競合して失敗することがあります(実機で確認済み)。失敗した場合は3秒待って自動的に1回だけ再試行するので、通常は気にする必要はありません(2回目も失敗した場合だけ「エラー」として表示されます)。
 - 実行中は進捗バーと「残り約◯分◯秒」も表示されます。コマンド自体は進捗率を教えてくれないので、前回その場所にかかった時間を基準にした目安です。初回実行時はまだ実績がないので、計測中であることだけを表示します。
 - アップデートが完了すると macOS の通知(バナー)で成功/失敗を知らせます。ポップオーバーを閉じていても気づけます。
 - 各プロジェクトの行には、成功/失敗を示す丸いバッジと「最終更新: ◯分前」が常に表示されます。ポップオーバーを開いた瞬間に、前回アップデートできたかどうかが分かります(結果はアプリを再起動しても残ります)。
@@ -60,6 +61,22 @@ open "$APP"
 5. Info.plist に `LSUIElement` (`Application is agent (UIElement)`) を `YES` に設定し、Dock アイコンを非表示にする。
 6. `Resources/AppIcon.icns` をアプリアイコンとして、`Resources/MenuBarIcon.png` をメニューバーアイコンとして使用する(`Info.plist` の `CFBundleIconFile` に `AppIcon` を指定)。
 
+### 権限ダイアログが毎回出る場合
+
+ビルド済みアプリとして配布している上記の手順は `codesign --force --sign -` (ad-hoc 署名)を使っています。ビルドするたびに署名が変わるため、macOS が毎回「新しいプログラム」とみなし、リムーバブルボリュームへのアクセス許可などのダイアログが繰り返し出ることがあります。
+
+気になる場合は、固定の自己署名証明書を作って使ってください。
+
+```sh
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 36500 -nodes \
+  -subj "/CN=IME Updater Local Signing" \
+  -addext "extendedKeyUsage=codeSigning" \
+  -addext "basicConstraints=critical,CA:true"
+openssl pkcs12 -export -out signing.p12 -inkey key.pem -in cert.pem -passout pass:
+```
+
+生成された `signing.p12` をダブルクリックしてキーチェーンに追加したら(パスワードは空欄のまま)、ビルドスクリプトの `codesign --force --sign -` を `codesign --force --sign "IME Updater Local Signing"` に変えてください。この証明書はローカル署名専用で、配布や公開鍵基盤としての信頼性はありません。**各自のマシンで一度だけ作成する必要があり、証明書(とくに秘密鍵)を他の人と共有しないでください。**
+
 ## 仕組みのメモ
 
 - シェルは `/bin/zsh -l` (ログインシェル) で起動し、`.zprofile` 等の PATH 設定(Homebrew, dotnet など)を確実に読み込みます。
@@ -72,6 +89,7 @@ open "$APP"
 - ポップオーバー(`MenuBarContentView`)とウィンドウ(`WindowContentView`)は見た目のコンテナを分けています。プロジェクト一覧(`ProjectListView`)は共有していますが、「ウィンドウで開く」ボタンはポップオーバー側にしか出しません(ウィンドウの中に「ウィンドウで開く」ボタンがあっても意味がないため)。
 - `Window` シーンは `.windowResizability(.contentSize)` にしているため、常にコンテンツの実サイズにウィンドウが追従します(`.contentMinSize` だと `idealWidth`/`maxWidth` の指定が尊重されず、ウィンドウが想定外に大きく開くことがありました)。`ProjectListView` の `ScrollView` には `.fixedSize(horizontal: false, vertical: true)` を付けて、プロジェクト数が少ないときに余分な空白ができないようにしています。
 - 起動時の一斉更新とバックグラウンド更新は同じ `AppViewModel.runAll()` を使っています。`AppViewModel.init()` で即座に 1 回呼び、以降は 1 時間おきの `Timer` で「最後の自動更新から `autoUpdateInterval`(毎日/毎週)以上経っているか」をチェックします。Mac がスリープしている間は `Timer` が進まないため、厳密な周期ではなく「起きている時間ベースで、間隔を過ぎたらなるべく早く実行する」という緩い保証です。
+- `ProjectRunner.run()` は失敗すると 3 秒待って 1 回だけ自動的に再試行します(`isRetry` フラグ)。複数プロジェクトを完全に同時実行すると、入力ソース登録などが稀に競合して失敗することを実機で確認したための対策です。Meltype の `mac/build.sh` が「システム設定」を自動で開いてしまう既知の挙動(開発者も原因未特定)を `pkill` で強制的に閉じようとしたところ、タイミングによっては Meltype 自身の入力ソース登録が失敗することも分かったため、その対応は見送っています。
 
 ## アイコンについて
 

@@ -131,10 +131,18 @@ final class ProjectRunner: ObservableObject {
     // ログインシェル (-l) で起動し、.zprofile 等で設定された PATH
     // (Homebrew, dotnet 等) を確実に読み込む。環境依存の "command not found" を防ぐため。
     // シェルに展開させず単一引数として渡すため、パスは変数展開なしで直接埋め込む。
-    func run(repoPath: String, postPullCommand: String) {
-        guard status != .running else { return }
+    //
+    // isRetry: 複数プロジェクトを同時実行すると、入力ソース登録などが稀に
+    // 競合して失敗することがある(実際に確認済み)。1回だけ自動で再試行することで
+    // この手の一過性の失敗を吸収する。2回目も失敗したら、そこで本当のエラーとして扱う。
+    func run(repoPath: String, postPullCommand: String, isRetry: Bool = false) {
+        guard isRetry || status != .running else { return }
         status = .running
-        log = ""
+        if isRetry {
+            log += "\n--- 失敗したため、少し待って再試行します ---\n"
+        } else {
+            log = ""
+        }
         startProgressTracking()
 
         // azooKey のように brew だけでアップデートが完結するプロジェクトは
@@ -171,9 +179,13 @@ final class ProjectRunner: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 let result: UpdateStatus = finished.terminationStatus == 0 ? .success : .error
-                self.status = result
                 self.runningProcess = nil
                 self.stopProgressTracking(success: result == .success)
+                if result == .error, !isRetry {
+                    self.scheduleRetry(repoPath: repoPath, postPullCommand: postPullCommand)
+                    return
+                }
+                self.status = result
                 self.recordResult(result)
                 self.notifyCompletion(result: result)
             }
@@ -184,10 +196,21 @@ final class ProjectRunner: ObservableObject {
             runningProcess = process
         } catch {
             log += "起動に失敗しました: \(error.localizedDescription)\n"
-            status = .error
             stopProgressTracking(success: false)
+            if !isRetry {
+                scheduleRetry(repoPath: repoPath, postPullCommand: postPullCommand)
+                return
+            }
+            status = .error
             recordResult(.error)
             notifyCompletion(result: .error)
+        }
+    }
+
+    private func scheduleRetry(repoPath: String, postPullCommand: String) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            self.run(repoPath: repoPath, postPullCommand: postPullCommand, isRetry: true)
         }
     }
 
@@ -306,6 +329,10 @@ final class AppViewModel: ObservableObject {
         UpdateProject(
             name: "Meltype",
             repoPath: ("~/Meltype" as NSString).expandingTildeInPath,
+            // mac/build.sh 内の入力ソース登録処理が、macOS 側の挙動として「システム設定」を
+            // 自動で開いてしまうことがある(Meltype 側も原因未特定の既知の挙動)。
+            // pkill で強制終了させるとタイミングによっては入力ソースの登録自体が失敗する
+            // (実際に確認済み)ため、ここでは手を出さずシステム設定が開くままにしている。
             postPullCommand: "bash mac/update.sh",
             iconFileName: "MeltypeIcon"
         ),
@@ -320,13 +347,23 @@ final class AppViewModel: ObservableObject {
     ]
 
     init() {
+        var loadedProjects: [UpdateProject]
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
            let decoded = try? JSONDecoder().decode([UpdateProject].self, from: data),
            !decoded.isEmpty {
-            projects = decoded
+            loadedProjects = decoded
         } else {
-            projects = Self.defaultProjects
+            loadedProjects = Self.defaultProjects
         }
+        // defaultProjects に後から追加したプロジェクト(名前で判定)は、
+        // 既に projects を保存済みの環境にも反映する。そうしないと
+        // 「コードに追記してビルドし直す」運用が、保存済みデータのある
+        // 環境では一切効かなくなってしまう。
+        let existingNames = Set(loadedProjects.map(\.name))
+        for defaultProject in Self.defaultProjects where !existingNames.contains(defaultProject.name) {
+            loadedProjects.append(defaultProject)
+        }
+        projects = loadedProjects
 
         if UserDefaults.standard.object(forKey: Self.autoUpdateEnabledKey) != nil {
             autoUpdateEnabled = UserDefaults.standard.bool(forKey: Self.autoUpdateEnabledKey)
@@ -335,6 +372,8 @@ final class AppViewModel: ObservableObject {
         }
         let storedInterval = UserDefaults.standard.integer(forKey: Self.autoUpdateIntervalKey)
         autoUpdateInterval = AutoUpdateInterval(rawValue: storedInterval) ?? .daily
+
+        save() // init 内の最初の代入では didSet が呼ばれないため、明示的に保存する。
 
         // アプリを開いた瞬間に、まず全プロジェクトを一斉更新する。
         // これ自体がバックグラウンド更新を兼ねるので、基準時刻も更新しておく。
