@@ -558,8 +558,12 @@ struct QuitButton: View {
 struct ProjectListView: View {
     @ObservedObject var appViewModel: AppViewModel
 
-    private static let rowHeight: CGFloat = 50
-    private static let maxVisibleRows: CGFloat = 6
+    // 行の実際の高さは、進捗バー表示中かどうか・DisclosureGroup の展開状態で
+    // 変動する。行数 × 固定高さで maxHeight を見積もると、進捗表示中の行がある
+    // ときに ScrollView の高さ計算が破綻して要素が重なって表示されてしまう
+    // (実際に確認した不具合)。.fixedSize でコンテンツの自然な高さに任せ、
+    // maxHeight は「多くなりすぎたときだけスクロールさせる」十分大きい上限にする。
+    private static let maxListHeight: CGFloat = 520
 
     var body: some View {
         ScrollView {
@@ -577,7 +581,7 @@ struct ProjectListView: View {
             }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .frame(maxHeight: min(CGFloat(appViewModel.projects.count), Self.maxVisibleRows) * Self.rowHeight + 24)
+        .frame(maxHeight: Self.maxListHeight)
     }
 }
 
