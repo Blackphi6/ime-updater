@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IME Updater — 日本語入力、まとめて最新に。</title>
+<meta name="description" content="Karukan / Meltype / azooKey など、複数の日本語入力メソッドをメニューバーからワンクリックで一括更新する macOS 常駐アプリ。" />
+<link rel="icon" href="assets/icons/AppIcon.png" />
+
+<meta property="og:title" content="IME Updater — 日本語入力、まとめて最新に。" />
+<meta property="og:description" content="複数の日本語入力メソッドをメニューバーからワンクリックで一括更新する macOS 常駐アプリ。" />
+<meta property="og:image" content="assets/icons/AppIcon.png" />
+<meta property="og:type" content="website" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap"
+  rel="stylesheet"
+/>
+
+<style>
+  :root {
+    --bg: oklch(99% 0.002 95);
+    --bg-tint: oklch(97.2% 0.004 260);
+    --surface: oklch(100% 0 0);
+    --ink: oklch(21% 0.01 270);
+    --ink-soft: oklch(47% 0.01 270);
+    --ink-faint: oklch(66% 0.008 270);
+    --line: oklch(90% 0.005 270);
+    --accent: oklch(55% 0.21 265);
+    --accent-ink: oklch(100% 0 0);
+    --accent-tint: oklch(94% 0.03 265);
+    --success: oklch(72% 0.18 148);
+
+    --display: "Zen Kaku Gothic New", "Space Grotesk", sans-serif;
+    --mono-en: "Space Grotesk", sans-serif;
+    --body: "Zen Kaku Gothic New", sans-serif;
+    --code: "JetBrains Mono", monospace;
+
+    --container: min(1180px, 92vw);
+    color-scheme: light;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+
+  .wrap {
+    width: var(--container);
+    margin-inline: auto;
+  }
+
+  /* ---------- Nav ---------- */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: color-mix(in oklch, var(--bg) 86%, transparent);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: clamp(60px, 8vw, 76px);
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono-en);
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+  .nav-brand img {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: clamp(18px, 3vw, 34px);
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+  }
+  .nav-links a {
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .nav-links a:hover {
+    color: var(--ink);
+  }
+  .nav-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--ink);
+    color: var(--surface);
+    padding: 9px 16px;
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    position: relative;
+    padding-top: clamp(64px, 9vw, 120px);
+    padding-bottom: clamp(40px, 6vw, 70px);
+  }
+  .hero .wrap {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: clamp(28px, 4vw, 56px);
+    align-items: center;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono-en);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-tint);
+    padding: 6px 12px 6px 10px;
+    border-radius: 999px;
+    margin-bottom: 22px;
+  }
+  .eyebrow .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .hero h1 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: clamp(2.6rem, 5.4vw, 4.4rem);
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .hero-lede {
+    margin-top: 24px;
+    font-size: clamp(1.02rem, 1.3vw, 1.18rem);
+    color: var(--ink-soft);
+    max-width: 46ch;
+  }
+  .hero-actions {
+    margin-top: 34px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+    font-size: 0.98rem;
+    padding: 14px 24px;
+    border-radius: 12px;
+    text-decoration: none;
+    box-shadow: 0 10px 24px -8px color-mix(in oklch, var(--accent) 55%, transparent);
+    transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+  }
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-soft);
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 2px;
+  }
+  .hero-meta {
+    margin-top: 30px;
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    font-family: var(--mono-en);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+  }
+
+  .hero-video {
+    position: relative;
+  }
+  .hero-video-frame {
+    position: relative;
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow:
+      0 2px 6px rgba(20, 20, 30, 0.06),
+      0 30px 60px -20px rgba(20, 20, 30, 0.22);
+    aspect-ratio: 1 / 1;
+    background: var(--surface);
+  }
+  .hero-video-frame video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .hero-video-tag {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--surface);
+    font-family: var(--mono-en);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    padding: 8px 16px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Problem strip ---------- */
+  .problem {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-tint);
+    padding-block: clamp(40px, 6vw, 64px);
+  }
+  .problem .wrap {
+    display: grid;
+    grid-template-columns: 0.8fr 1.2fr;
+    gap: clamp(24px, 4vw, 48px);
+    align-items: start;
+  }
+  .problem h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(1.5rem, 2.4vw, 2rem);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+  .problem-list {
+    list-style: none;
+    display: grid;
+    gap: 14px;
+  }
+  .problem-list li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: baseline;
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+  }
+  .problem-list li::before {
+    content: "✕";
+    color: var(--ink-faint);
+    font-family: var(--mono-en);
+    font-size: 0.82rem;
+  }
+
+  /* ---------- Features ---------- */
+  .features {
+    padding-block: clamp(70px, 10vw, 128px);
+  }
+  .section-head {
+    max-width: 58ch;
+    margin-bottom: clamp(44px, 6vw, 72px);
+  }
+  .section-eyebrow {
+    font-family: var(--mono-en);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+    display: block;
+  }
+  .section-head h2 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(1.9rem, 3.4vw, 2.8rem);
+    letter-spacing: -0.015em;
+    line-height: 1.22;
+  }
+
+  .feature-row {
+    display: grid;
+    grid-template-columns: 0.42fr 0.58fr;
+    gap: clamp(28px, 5vw, 64px);
+    align-items: center;
+    padding-block: clamp(36px, 5vw, 58px);
+    border-top: 1px solid var(--line);
+  }
+  .feature-row:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .feature-row.reverse {
+    grid-template-columns: 0.58fr 0.42fr;
+  }
+  .feature-row.reverse .feature-copy {
+    order: 2;
+  }
+  .feature-num {
+    font-family: var(--mono-en);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    margin-bottom: 14px;
+    display: block;
+  }
+  .feature-copy h3 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(1.3rem, 1.9vw, 1.7rem);
+    letter-spacing: -0.01em;
+    margin-bottom: 14px;
+  }
+  .feature-copy p {
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    max-width: 44ch;
+  }
+  .feature-visual {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: clamp(22px, 3vw, 34px);
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* mini mock pieces reused across feature visuals */
+  .mock-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--bg-tint);
+    border-radius: 14px;
+    padding: 14px 18px;
+    width: 100%;
+  }
+  .mock-row img {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .mock-row-text {
+    flex: 1;
+  }
+  .mock-row-text b {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 700;
+  }
+  .mock-row-text span {
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  .mock-track {
+    width: 90px;
+    height: 7px;
+    border-radius: 4px;
+    background: var(--line);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .mock-track i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+  }
+  .mock-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--success);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mock-badge svg {
+    width: 14px;
+    height: 14px;
+  }
+  .mock-stack {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+  }
+  .mock-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-tint);
+    border-radius: 14px;
+    padding: 16px 20px;
+    width: 100%;
+  }
+  .mock-toggle span {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .mock-switch {
+    width: 42px;
+    height: 24px;
+    border-radius: 999px;
+    background: var(--accent);
+    position: relative;
+  }
+  .mock-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 21px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--surface);
+  }
+  .mock-notif {
+    background: var(--bg-tint);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    width: 100%;
+  }
+  .mock-notif-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+  .mock-notif b {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .mock-notif span {
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- Apps ---------- */
+  .apps {
+    background: var(--ink);
+    color: var(--surface);
+    padding-block: clamp(70px, 9vw, 110px);
+  }
+  .apps .section-head h2 {
+    color: var(--surface);
+  }
+  .apps .section-eyebrow {
+    color: oklch(75% 0.18 265);
+  }
+  .apps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: color-mix(in oklch, var(--surface) 14%, transparent);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .app-card {
+    background: var(--ink);
+    padding: clamp(28px, 3.4vw, 40px) clamp(22px, 3vw, 30px);
+    text-decoration: none;
+    color: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: background 0.2s ease;
+  }
+  .app-card:hover {
+    background: color-mix(in oklch, var(--ink) 80%, var(--accent) 20%);
+  }
+  .app-card img {
+    width: 52px;
+    height: 52px;
+    border-radius: 13px;
+  }
+  .app-card b {
+    font-family: var(--mono-en);
+    font-size: 1.08rem;
+    font-weight: 600;
+  }
+  .app-card span {
+    font-size: 0.86rem;
+    color: color-mix(in oklch, var(--surface) 60%, transparent);
+    line-height: 1.6;
+  }
+  .app-card .app-link {
+    margin-top: auto;
+    font-family: var(--mono-en);
+    font-size: 0.78rem;
+    color: oklch(75% 0.18 265);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* ---------- Install ---------- */
+  .install {
+    padding-block: clamp(70px, 10vw, 120px);
+  }
+  .install .wrap {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: clamp(28px, 4vw, 56px);
+  }
+  .install-copy p {
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    max-width: 40ch;
+    margin-top: 18px;
+  }
+  .install-note {
+    margin-top: 26px;
+    padding: 16px 18px;
+    background: var(--accent-tint);
+    border-radius: 14px;
+    font-size: 0.86rem;
+    color: color-mix(in oklch, var(--accent) 70%, var(--ink) 30%);
+  }
+  .code-card {
+    background: oklch(18% 0.008 270);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 24px 50px -20px rgba(10, 10, 20, 0.35);
+  }
+  .code-card-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 14px 18px;
+    border-bottom: 1px solid oklch(28% 0.01 270);
+  }
+  .code-card-head span {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: oklch(55% 0.01 270);
+  }
+  .code-card pre {
+    padding: 22px 20px 26px;
+    overflow-x: auto;
+    font-family: var(--code);
+    font-size: 0.82rem;
+    line-height: 1.85;
+    color: oklch(92% 0.01 270);
+  }
+  .code-card .c-comment {
+    color: oklch(60% 0.02 270);
+  }
+  .code-card .c-str {
+    color: oklch(80% 0.14 148);
+  }
+
+  /* ---------- CTA footer ---------- */
+  .cta {
+    padding-block: clamp(70px, 10vw, 120px);
+    text-align: center;
+  }
+  .cta h2 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: clamp(2rem, 4.4vw, 3.2rem);
+    letter-spacing: -0.015em;
+    max-width: 18ch;
+    margin-inline: auto;
+    line-height: 1.25;
+  }
+  .cta h2 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .cta-actions {
+    margin-top: 32px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-block: 34px;
+  }
+  footer .wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    font-family: var(--mono-en);
+  }
+  footer a {
+    text-decoration: none;
+    color: var(--ink-faint);
+  }
+  footer a:hover {
+    color: var(--ink);
+  }
+
+  @media (max-width: 860px) {
+    .hero .wrap {
+      grid-template-columns: 1fr;
+    }
+    .hero-video {
+      order: -1;
+      max-width: 340px;
+      margin-inline: auto;
+    }
+    .problem .wrap {
+      grid-template-columns: 1fr;
+    }
+    .feature-row,
+    .feature-row.reverse {
+      grid-template-columns: 1fr;
+    }
+    .feature-row.reverse .feature-copy {
+      order: 0;
+    }
+    .apps-grid {
+      grid-template-columns: 1fr;
+    }
+    .install .wrap {
+      grid-template-columns: 1fr;
+    }
+    .nav-links {
+      display: none;
+    }
+  }
+
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.6s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  [data-reveal].is-visible {
+    opacity: 1;
+    transform: none;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a class="nav-brand" href="#top">
+      <img src="assets/icons/AppIcon.png" alt="" />
+      IME Updater
+    </a>
+    <div class="nav-links">
+      <a href="#features">機能</a>
+      <a href="#apps">対応アプリ</a>
+      <a href="#install">インストール</a>
+      <a class="nav-cta" href="https://github.com/Blackphi6/ime-updater" target="_blank" rel="noopener">
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-copy">
+      <span class="eyebrow"><span class="dot"></span>macOS メニューバー常駐 · OSS</span>
+      <h1>日本語入力、<br /><em>まとめて</em>最新に。</h1>
+      <p class="hero-lede">
+        Karukan・Meltype・azooKey ——複数の自作/サードパーティ製 IME を、
+        メニューバーのワンクリックでまとめて <code style="font-family:var(--code);font-size:0.92em;">git pull</code>
+        &amp; ビルド &amp; インストール。起動するだけで最新の状態になります。
+      </p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="https://github.com/Blackphi6/ime-updater" target="_blank" rel="noopener">
+          GitHub で見る
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12L12 4M12 4H5M12 4V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a class="btn-ghost" href="#install">
+          インストール手順を見る ↓
+        </a>
+      </div>
+      <div class="hero-meta">
+        <span>Swift / SwiftUI</span>
+        <span>macOS 13+</span>
+        <span>MIT License</span>
+      </div>
+    </div>
+    <div class="hero-video">
+      <div class="hero-video-frame">
+        <video autoplay muted loop playsinline preload="metadata">
+          <source src="assets/video/demo.mp4" type="video/mp4" />
+        </video>
+      </div>
+      <div class="hero-video-tag">実際のアプリ画面(無音・ループ再生)</div>
+    </div>
+  </div>
+</header>
+
+<section class="problem">
+  <div class="wrap">
+    <h2 data-reveal>自作 IME を複数使うと、<br />更新作業はこうなりがち。</h2>
+    <ul class="problem-list" data-reveal>
+      <li><span>リポジトリごとに <code style="font-family:var(--code);font-size:0.9em;">cd</code> して <code style="font-family:var(--code);font-size:0.9em;">git pull</code> を打つ</span></li>
+      <li><span>プロジェクトごとに違うビルド・インストールコマンドを覚えておく</span></li>
+      <li><span>更新できたかどうか、起動して自分の目で確認する</span></li>
+      <li><span>IME が増えるたびに、この手順を人数分くり返す</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="wrap">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">Features</span>
+      <h2>メニューバーに常駐。<br />ひとつのボタンで。</h2>
+    </div>
+
+    <div class="feature-row" data-reveal>
+      <div class="feature-copy">
+        <span class="feature-num">01</span>
+        <h3>起動した瞬間、全部まとめて更新</h3>
+        <p>アプリを開くだけで、登録されている全プロジェクトを自動で一斉更新。ボタンを押す手間すらありません。</p>
+      </div>
+      <div class="feature-visual">
+        <div class="mock-stack">
+          <div class="mock-row">
+            <img src="assets/icons/KarukanIcon.png" alt="" />
+            <div class="mock-row-text"><b>Karukan</b><span>たった今</span></div>
+            <div class="mock-badge"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="mock-row">
+            <img src="assets/icons/AzooKeyIcon.png" alt="" />
+            <div class="mock-row-text"><b>azooKey</b><span>たった今</span></div>
+            <div class="mock-badge"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="mock-row">
+            <img src="assets/icons/MeltypeIcon.png" alt="" />
+            <div class="mock-row-text"><b>Meltype</b><span>たった今</span></div>
+            <div class="mock-badge"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature-row reverse" data-reveal>
+      <div class="feature-copy">
+        <span class="feature-num">02</span>
+        <h3>進捗バーで、待ち時間が見える</h3>
+        <p>前回の所要時間を基準に、残り時間の目安を表示。複数プロジェクトを同時に動かしても、独立したログとステータスで混ざりません。</p>
+      </div>
+      <div class="feature-visual">
+        <div class="mock-stack">
+          <div class="mock-row">
+            <img src="assets/icons/KarukanIcon.png" alt="" />
+            <div class="mock-row-text"><b>Karukan</b><span>実行中・残り約12秒</span></div>
+            <div class="mock-track"><i style="width:70%"></i></div>
+          </div>
+          <div class="mock-row">
+            <img src="assets/icons/MeltypeIcon.png" alt="" />
+            <div class="mock-row-text"><b>Meltype</b><span>実行中・残り約28秒</span></div>
+            <div class="mock-track"><i style="width:35%"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature-row" data-reveal>
+      <div class="feature-copy">
+        <span class="feature-num">03</span>
+        <h3>バックグラウンドで自動更新</h3>
+        <p>毎日・毎週から頻度を選んで、アプリを開きっぱなしにしておくだけ。間隔を過ぎたら自動で最新化します。</p>
+      </div>
+      <div class="feature-visual">
+        <div class="mock-toggle" style="width:100%;">
+          <span>バックグラウンドで自動更新</span>
+          <div class="mock-switch"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature-row reverse" data-reveal>
+      <div class="feature-copy">
+        <span class="feature-num">04</span>
+        <h3>完了したら、通知で知らせる</h3>
+        <p>更新が終わると macOS の通知で成功/失敗を表示。ポップオーバーを閉じていても気づけます。</p>
+      </div>
+      <div class="feature-visual">
+        <div class="mock-notif" style="width:100%;">
+          <div class="mock-notif-dot"></div>
+          <div>
+            <b>IME Updater</b>
+            <span>Karukan / azooKey / Meltype の更新が完了しました</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="apps" id="apps">
+  <div class="wrap">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">Supported</span>
+      <h2>対応プロジェクト</h2>
+    </div>
+    <div class="apps-grid" data-reveal>
+      <a class="app-card" href="https://github.com/togatoga/karukan" target="_blank" rel="noopener">
+        <img src="assets/icons/KarukanIcon.png" alt="" />
+        <b>Karukan</b>
+        <span>git pull → make install → プロセス再起動まで自動化</span>
+        <span class="app-link">togatoga/karukan ↗</span>
+      </a>
+      <a class="app-card" href="https://github.com/yksr-melt/Meltype" target="_blank" rel="noopener">
+        <img src="assets/icons/MeltypeIcon.png" alt="" />
+        <b>Meltype</b>
+        <span>mac/update.sh を実行し、ビルドからインストールまで</span>
+        <span class="app-link">yksr-melt/Meltype ↗</span>
+      </a>
+      <a class="app-card" href="https://github.com/azooKey/azooKey-Desktop" target="_blank" rel="noopener">
+        <img src="assets/icons/AzooKeyIcon.png" alt="" />
+        <b>azooKey</b>
+        <span>Homebrew Cask 経由でアップデートが完結</span>
+        <span class="app-link">azooKey/azooKey-Desktop ↗</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="install" id="install">
+  <div class="wrap">
+    <div class="install-copy" data-reveal>
+      <span class="section-eyebrow">Install</span>
+      <h2 style="font-family:var(--display);font-weight:800;font-size:clamp(1.9rem,3vw,2.5rem);letter-spacing:-0.015em;line-height:1.25;">
+        Xcode 不要。<br />1 ファイルを<br />swiftc でビルド。
+      </h2>
+      <p>
+        <code style="font-family:var(--code);font-size:0.92em;">IMEUpdaterApp.swift</code> 1 ファイルのみの構成。
+        リポジトリを clone して、そのままビルド・インストールできます。
+      </p>
+      <div class="install-note">
+        権限ダイアログが毎回出る場合は、固定の自己署名証明書を使う方法を README に記載しています。
+      </div>
+    </div>
+    <div class="code-card" data-reveal>
+      <div class="code-card-head">
+        <span></span><span></span><span></span>
+      </div>
+      <pre><span class="c-comment"># clone</span>
+git clone https://github.com/Blackphi6/ime-updater.git
+<span class="c-str">cd</span> ime-updater
+
+<span class="c-comment"># build</span>
+xcrun swiftc -parse-as-library -O \
+  -o "IME Updater" IMEUpdaterApp.swift
+
+<span class="c-comment"># install</span>
+APP="/Applications/IME Updater.app"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "IME Updater" "$APP/Contents/MacOS/"
+cp Resources/*.icns Resources/*.png "$APP/Contents/Resources/"
+cp Info.plist "$APP/Contents/"
+codesign --force --sign - "$APP"
+
+<span class="c-comment"># launch</span>
+open "$APP"</pre>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <h2 data-reveal>自分の IME を、<br /><em>このアプリ</em>に<br />追加してみる。</h2>
+    <p style="margin-top:18px;color:var(--ink-soft);">
+      <code style="font-family:var(--code);font-size:0.92em;">AppViewModel.defaultProjects</code> に数行足すだけで、新しい IME にも対応できます。
+    </p>
+    <div class="cta-actions" data-reveal>
+      <a class="btn-primary" href="https://github.com/Blackphi6/ime-updater" target="_blank" rel="noopener">
+        GitHub で見る
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12L12 4M12 4H5M12 4V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>IME Updater · MIT License</span>
+    <a href="https://github.com/Blackphi6/ime-updater" target="_blank" rel="noopener">github.com/Blackphi6/ime-updater</a>
+  </div>
+</footer>
+
+<script>
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add("is-visible");
+          io.unobserve(e.target);
+        }
+      });
+    },
+    { threshold: 0.15 }
+  );
+  document.querySelectorAll("[data-reveal]").forEach((el) => io.observe(el));
+</script>
+
+</body>
+</html>
