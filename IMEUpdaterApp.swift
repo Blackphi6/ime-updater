@@ -348,6 +348,18 @@ final class AppViewModel: ObservableObject {
             postPullCommand: "brew update && brew upgrade --cask azookey",
             iconFileName: "AzooKeyIcon"
         ),
+        // Shizuku も azooKey と同様、ソースをビルドするのではなく配布済みの
+        // .pkg をそのつど取得してインストールする方式。開発元の GitHub Releases が
+        // 常に最新版を指す固定 URL を提供しているため、パスは空のままコマンドだけ実行する。
+        // installer の -target CurrentUserHomeDirectory は ~/Library/Input Methods への
+        // ユーザーレベルインストールで、公式サイトにも「パスワードは求められません」とある
+        // 通り sudo が要らない。
+        UpdateProject(
+            name: "Shizuku",
+            repoPath: "",
+            postPullCommand: "curl -fsSL -o /tmp/Shizuku.pkg https://github.com/n-seiji/shizuku-ime/releases/latest/download/Shizuku.pkg && installer -pkg /tmp/Shizuku.pkg -target CurrentUserHomeDirectory",
+            iconFileName: "ShizukuIcon"
+        ),
     ]
 
     init() {

@@ -27,6 +27,7 @@
 | [Karukan](https://github.com/togatoga/karukan) | `~/karukan` | `cd karukan-im/macos && make install && (killall KarukanIME 2>/dev/null \|\| true)` |
 | [Meltype](https://github.com/yksr-melt/Meltype) | `~/Meltype` | `LIBRARY_PATH=/opt/homebrew/lib bash mac/update.sh` |
 | [azooKey](https://github.com/azooKey/azooKey-Desktop) | (なし) | `brew update && brew upgrade --cask azookey` |
+| [Shizuku](https://github.com/n-seiji/shizuku-ime) | (なし) | `curl -fsSL -o /tmp/Shizuku.pkg https://github.com/n-seiji/shizuku-ime/releases/latest/download/Shizuku.pkg && installer -pkg /tmp/Shizuku.pkg -target CurrentUserHomeDirectory` |
 
 パスは環境に合わせてアプリ内で変更してください。azooKey のように Homebrew Cask だけでアップデートが完結するプロジェクトは、パスを空のままにしておけば `cd` と `git pull` をスキップしてコマンドだけ実行します。新しい IME に対応させたい場合は `IMEUpdaterApp.swift` の `AppViewModel.defaultProjects` に追記してビルドし直してください(アプリ内から動的に追加する UI はあえて持たせていません)。
 
