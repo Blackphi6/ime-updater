@@ -25,7 +25,7 @@
 | プロジェクト | デフォルトのパス | 実行するコマンド |
 | --- | --- | --- |
 | [Karukan](https://github.com/togatoga/karukan) | `~/karukan` | `cd karukan-im/macos && make install && (killall KarukanIME 2>/dev/null \|\| true)` |
-| [Meltype](https://github.com/yksr-melt/Meltype) | `~/Meltype` | `bash mac/update.sh` |
+| [Meltype](https://github.com/yksr-melt/Meltype) | `~/Meltype` | `LIBRARY_PATH=/opt/homebrew/lib bash mac/update.sh` |
 | [azooKey](https://github.com/azooKey/azooKey-Desktop) | (なし) | `brew update && brew upgrade --cask azookey` |
 
 パスは環境に合わせてアプリ内で変更してください。azooKey のように Homebrew Cask だけでアップデートが完結するプロジェクトは、パスを空のままにしておけば `cd` と `git pull` をスキップしてコマンドだけ実行します。新しい IME に対応させたい場合は `IMEUpdaterApp.swift` の `AppViewModel.defaultProjects` に追記してビルドし直してください(アプリ内から動的に追加する UI はあえて持たせていません)。
@@ -90,6 +90,7 @@ openssl pkcs12 -export -out signing.p12 -inkey key.pem -in cert.pem -passout pas
 - `Window` シーンは `.windowResizability(.contentSize)` にしているため、常にコンテンツの実サイズにウィンドウが追従します(`.contentMinSize` だと `idealWidth`/`maxWidth` の指定が尊重されず、ウィンドウが想定外に大きく開くことがありました)。`ProjectListView` の `ScrollView` には `.fixedSize(horizontal: false, vertical: true)` を付けて、プロジェクト数が少ないときに余分な空白ができないようにしています。
 - 起動時の一斉更新とバックグラウンド更新は同じ `AppViewModel.runAll()` を使っています。`AppViewModel.init()` で即座に 1 回呼び、以降は 1 時間おきの `Timer` で「最後の自動更新から `autoUpdateInterval`(毎日/毎週)以上経っているか」をチェックします。Mac がスリープしている間は `Timer` が進まないため、厳密な周期ではなく「起きている時間ベースで、間隔を過ぎたらなるべく早く実行する」という緩い保証です。
 - `ProjectRunner.run()` は失敗すると 3 秒待って 1 回だけ自動的に再試行します(`isRetry` フラグ)。複数プロジェクトを完全に同時実行すると、入力ソース登録などが稀に競合して失敗することを実機で確認したための対策です。Meltype の `mac/build.sh` が「システム設定」を自動で開いてしまう既知の挙動(開発者も原因未特定)を `pkill` で強制的に閉じようとしたところ、タイミングによっては Meltype 自身の入力ソース登録が失敗することも分かったため、その対応は見送っています。
+- Meltype の postPullCommand に `LIBRARY_PATH=/opt/homebrew/lib` を付けているのは、Meltype 側が .NET(NativeAOT)でネイティブライブラリをビルドする際、`clang` のデフォルトのライブラリ検索パスに Homebrew の `/opt/homebrew/lib` が含まれておらず `ld: library 'ssl' not found` で失敗することを実機で確認したためです(`openssl` は Homebrew では keg-only で標準パスに入らないため)。ライブラリ自体は存在するので、検索パスを明示するだけで解決します。
 
 ## アイコンについて
 

@@ -333,7 +333,11 @@ final class AppViewModel: ObservableObject {
             // 自動で開いてしまうことがある(Meltype 側も原因未特定の既知の挙動)。
             // pkill で強制終了させるとタイミングによっては入力ソースの登録自体が失敗する
             // (実際に確認済み)ため、ここでは手を出さずシステム設定が開くままにしている。
-            postPullCommand: "bash mac/update.sh",
+            // LIBRARY_PATH: Meltype の .NET(NativeAOT)ビルドが libssl/libcrypto をリンクする際、
+            // clang のデフォルト検索パスに Homebrew の /opt/homebrew/lib が含まれておらず
+            // "ld: library 'ssl' not found" で失敗することを実機で確認した。ライブラリ自体は
+            // 存在するが、brew の openssl は keg-only で標準パスに入らないため明示する。
+            postPullCommand: "LIBRARY_PATH=/opt/homebrew/lib bash mac/update.sh",
             iconFileName: "MeltypeIcon"
         ),
         // azooKey は Homebrew Cask で配布されているため、リポジトリの
